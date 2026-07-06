@@ -1,27 +1,54 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Text;
+﻿using System.Text.RegularExpressions;
 
-namespace diyllm;
-
-public class Tokenizer
+namespace diyllm
 {
-    private string[] _vocabulary;
-
-    public Tokenizer(string input)
+    public class Tokenizer
     {
-        var split = input.Split([' ', '\n', '\r', '\t', '.', ',', ';', ':', '!', '?', '(', ')', '[', ']', '{', '}', '"', '\''], StringSplitOptions.RemoveEmptyEntries);
+        private readonly Dictionary<string, int> _strToInt = [];
+        private readonly Dictionary<int, string> _intToStr = [];
 
-        _vocabulary = split;
-    }
+        private int _nextId = 0;
 
-    public void Encode(string text)
-    {
-        // Implement encoding logic here
+        public IReadOnlyDictionary<string, int> Vocabulary => _strToInt;
 
-    }
+        public List<int> Encode(string text)
+        {
+            // Split on punctuation, "--", or whitespace while keeping delimiters.
+            var tokens = Regex.Split(text, @"([,.?_!""()']|--|\s)")
+                .Select(s => s.Trim())
+                .Where(s => !string.IsNullOrWhiteSpace(s));
 
-    public void Decode(string text)
-    {
+            var ids = new List<int>();
+
+            foreach (var token in tokens)
+            {
+                if (!_strToInt.TryGetValue(token, out int id))
+                {
+                    id = _nextId++;
+                    _strToInt[token] = id;
+                    _intToStr[id] = token;
+                }
+
+                ids.Add(id);
+            }
+
+            return ids;
+        }
+
+        public string Decode(IEnumerable<int> ids)
+        {
+            var tokens = ids.Select(id =>
+            {
+                if (!_intToStr.TryGetValue(id, out var token))
+                    throw new ArgumentException($"Unknown token ID: {id}");
+
+                return token;
+            });
+
+            var text = string.Join(" ", tokens);
+
+            // Remove spaces before punctuation.
+            return Regex.Replace(text, @"\s+([,.?!""()'])", "$1");
+        }
     }
 }
